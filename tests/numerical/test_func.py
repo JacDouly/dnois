@@ -89,6 +89,11 @@ class TestXYPoly(unittest.TestCase):
         (lambda x, y: x ** 2 * y, lambda x, y: 2 * x * y, lambda x, y: x ** 2),
         (lambda x, y: x * y ** 2, lambda x, y: y ** 2, lambda x, y: 2 * x * y),
         (lambda x, y: y ** 3, lambda x, y: torch.zeros_like(x), lambda x, y: 3 * y ** 2),
+        (lambda x, y: x ** 4, lambda x, y: 4 * x ** 3, lambda x, y: torch.zeros_like(x)),
+        (lambda x, y: x ** 3 * y, lambda x, y: 3 * x ** 2 * y, lambda x, y: x ** 3),
+        (lambda x, y: x ** 2 * y ** 2, lambda x, y: 2 * x * y ** 2, lambda x, y: 2 * x ** 2 * y),
+        (lambda x, y: x * y ** 3, lambda x, y: y ** 3, lambda x, y: 3 * x * y ** 2),
+        (lambda x, y: y ** 4, lambda x, y: torch.zeros_like(x), lambda x, y: 4 * y ** 3),
     ]
 
     def setUp(self):
@@ -97,7 +102,7 @@ class TestXYPoly(unittest.TestCase):
         self.x, self.y = torch.meshgrid(x, x, indexing='xy')
 
     def test_xy_poly(self):
-        for i in range(1, 10):
+        for i in range(1, len(self.functions) + 1):
             with self.subTest(k=i):
                 self._test_xy_poly_item(i)
 

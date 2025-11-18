@@ -96,11 +96,15 @@ class Context(_t.EnhancedModule):
         surface: 'Surface',
         surface_sequence: 'SurfaceSequence',
         upward_in: bool = True,
+        **kwargs
     ):
         super().__init__()
         self.surface: 'Surface' = surface  #: The host surface that this context belongs to.
         self.seq: 'SurfaceSequence' = surface_sequence  #: The surface list containing the surface.
         self.upward_in: bool = upward_in  #: Whether rays enter the surface along positive local z-axis.
+        for k, v in kwargs.items():
+            if k in self._transform_params:
+                setattr(self, k, v)  # register parameter, in fact
 
     def __setattr__(self, key, value):
         if key in {'surface', 'seq'}:
@@ -408,8 +412,15 @@ class CoaxialContext(Context):
         surface_sequence: 'SurfaceSequence',
         distance: ty.Scalar = None,
         upward_in: bool = None,
+        **kwargs
     ):
-        super().__init__(surface, surface_sequence, upward_in)
+        d = kwargs.pop('d', None)
+        if distance is None:
+            distance = d
+        elif d is not None:
+            warnings.warn('Both `distance` and `d` are specified. `d` will be ignored.', DeprecationWarning)
+
+        super().__init__(surface, surface_sequence, upward_in, **kwargs)
         if distance is None:
             distance = 0.
         distance = ty.scalar(distance, dtype=torch.get_default_dtype())
@@ -603,8 +614,6 @@ class Surface(_t.EnhancedModule, utils.VarHookMixIn, metaclass=abc.ABCMeta):
         Default: see :class:`CircularAperture`.
     :param dict intersection_config: Configuration for Newton's method.
         See :class:`IntersectionConfig` for details.
-    :param d: Distance to the next surface in :class:`CoaxialSurfaceSequence`.
-        This parameter should not be set in a non-coaxial case. Default: ``None``.
     """
     circularly_symmetric: bool = False  #: Whether the surface type is circularly symmetric.
     utilize_r2: bool = False  #: Whether the surface can utilize computed r2 to improve efficiency.
@@ -615,8 +624,7 @@ class Surface(_t.EnhancedModule, utils.VarHookMixIn, metaclass=abc.ABCMeta):
         aperture: Aperture | Scalar = None,
         reflective: bool = False,
         intersection_config: IntersectionConfig = IntersectionConfig.default,
-        *,
-        d: Scalar = None,
+        **kwargs
     ):
         super().__init__()
         if aperture is None:
@@ -635,10 +643,9 @@ class Surface(_t.EnhancedModule, utils.VarHookMixIn, metaclass=abc.ABCMeta):
         #: Whether this surface reflects (rather than refracts) rays.
         self.reflective: bool = reflective
 
-        if d is not None:
-            self._distance = ty.scalar(d, dtype=self.dtype, device=self.device)
-
         self._cfg = intersection_config
+
+        self._context_kwds = kwargs
 
     @abc.abstractmethod
     def h(self, x: Ts, y: Ts, r2: Ts = None) -> Ts:
@@ -999,10 +1006,9 @@ class Plane(Surface):
         material: mt.Material | str = 'air',
         aperture: Aperture | Scalar = None,
         reflective: bool = False,
-        *,
-        d: Scalar = None
+        **kwargs
     ):
-        super().__init__(material, aperture, reflective, d=d)
+        super().__init__(material, aperture, reflective, **kwargs)
 
     def h(self, x: Ts, y: Ts, r2: Ts = None) -> Ts:
         return self.new_zeros(torch.broadcast_shapes(x.shape, y.shape))
@@ -1031,8 +1037,8 @@ class Stop(Plane):
         will be moved to the surface. Otherwise, their origins are kept. Default: ``False``.
     """
 
-    def __init__(self, aperture: Aperture | Scalar = None, move_ray: bool = False, *, d: Scalar = None):
-        super().__init__('air', aperture, False, d=d)  # material is ignored
+    def __init__(self, aperture: Aperture | Scalar = None, move_ray: bool = False, **kwargs):
+        super().__init__('air', aperture, False, **kwargs)  # material is ignored
         self._move_ray = move_ray
 
     def intercept(self, ray: BatchedRay, forward: bool = True, aperture: bool = True) -> BatchedRay:
@@ -1100,6 +1106,7 @@ class SurfaceSequence(
     """
 
     _force_surface: bool = True
+    _ctx_class = Context
     __call__: Callable[..., BatchedRay]  # for return type hint in IDE
 
     def __init__(
@@ -1476,7 +1483,9 @@ class SurfaceSequence(
             super().__delitem__(idx)
 
     def _make_ctx(self, s):
-        return Context(s, self)
+        kwargs = s._context_kwds
+        del s._context_kwds
+        return self._ctx_class(s, self, **kwargs)
 
     @classmethod
     def _discard(cls, *old: Surface):
@@ -1486,6 +1495,8 @@ class SurfaceSequence(
 
 class CoaxialSurfaceSequence(SurfaceSequence):
     """A subclass of :class:`SurfaceSequence` to contain coaxial surfaces."""
+
+    _ctx_class = CoaxialContext
 
     def trace_out(self, ray: BatchedRay, forward: bool = True, aperture: bool = True) -> BatchedRay:
         """
@@ -1555,12 +1566,6 @@ class CoaxialSurfaceSequence(SurfaceSequence):
                     raise ValueError('Distance must be specified either in contexts or surfaces')
                 c['distance'] = distances[i]
         return super().from_dict(d)
-
-    def _make_ctx(self, s):
-        d = getattr(s, '_distance', None)
-        if d is not None:
-            del s._distance  # noqa
-        return CoaxialContext(s, self, d)
 
     @classmethod
     def _discard(cls, *old: Surface):

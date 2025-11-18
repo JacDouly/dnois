@@ -8,7 +8,7 @@ __all__ = [
 ]
 
 
-class FixedFov(CrtFovModel):
+class FixedFov(SrtFovModel):
     type = 'fixed'
 
     def __init__(self, fov: float | tuple[float, float] | tuple[float, float, float, float]):
@@ -25,14 +25,14 @@ class FixedFov(CrtFovModel):
             'y_upper': fov[3]
         }
 
-    def get(self, optics: 'CoaxialRayTracing', which: FovItem) -> float:
+    def get(self, optics: SequentialRayTracing, which: FovItem) -> float:
         return self.fov[which]
 
 
-class PerspectiveFov(CrtFovModel):
+class PerspectiveFov(SrtFovModel):
     type = 'perspective'
 
-    def get(self, optics: 'CoaxialRayTracing', which: FovItem) -> float:
+    def get(self, optics: SequentialRayTracing, which: FovItem) -> float:
         fov_half = getattr(optics.reference, f'fov_half_{which[0]}')
         if which.endswith('lower'):
             return -fov_half
@@ -42,15 +42,15 @@ class PerspectiveFov(CrtFovModel):
             raise ValueError(f'Invalid FovItem: {which}')
 
 
-class ChiefRayFov(CrtFovModel):
+class ChiefRayFov(SrtFovModel):
     type = 'chief'
 
-    def get(self, optics: 'CoaxialRayTracing', which: FovItem) -> float:
+    def get(self, optics: SequentialRayTracing, which: FovItem) -> float:
         raise NotImplementedError()
 
 
-class AverageFov(CrtFovModel):
+class AverageFov(SrtFovModel):
     type = 'average'
 
-    def get(self, optics: 'CoaxialRayTracing', which: FovItem) -> float:
+    def get(self, optics: SequentialRayTracing, which: FovItem) -> float:
         raise NotImplementedError()

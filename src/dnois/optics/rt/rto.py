@@ -32,18 +32,6 @@ class ForwardRayTracingOptics(system.ImagingOptics, system.RenderImageSceneMixIn
         """
         pass
 
-    @abc.abstractmethod
-    def trace_ray(self, ray: _ray.BatchedRay) -> _ray.BatchedRay:
-        """
-        Trace a group of rays through surfaces until the image plane.
-        If you want to trace rays until the last surface, call ``self.surfaces(ray)``.
-
-        :param BatchedRay ray: Rays to trace.
-        :return: Rays after tracing. Their origins are located at the image plane.
-        :rtype: BatchedRay
-        """
-        pass
-
     @utils.with_external
     def render_image_scene(
         self,

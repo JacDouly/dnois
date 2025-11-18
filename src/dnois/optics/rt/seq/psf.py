@@ -32,7 +32,7 @@ class PsfCenterDeterm(utils.ConvertSetAttrMixIn, metaclass=abc.ABCMeta):
     type: str  #: A name to identify the way to determine PSF center.
 
     @abc.abstractmethod
-    def __call__(self, optics: CoaxialRayTracing, origins: ty.Ts, out_ray: BatchedRay, wl: ty.Ts):
+    def __call__(self, optics: SequentialRayTracing, origins: ty.Ts, out_ray: BatchedRay, wl: ty.Ts):
         pass
 
     @classmethod
@@ -54,7 +54,7 @@ class LinearPsfCenter(PsfCenterDeterm):
     """
     type = 'linear'
 
-    def __call__(self, optics: CoaxialRayTracing, origins: ty.Ts, *args, **kwargs):
+    def __call__(self, optics: SequentialRayTracing, origins: ty.Ts, *args, **kwargs):
         return optics.obj_proj_lens(origins)[..., None, None, :]  # ... x 1 x 1 x 2
 
 
@@ -71,7 +71,7 @@ class FixedPsfCenter(PsfCenterDeterm):
     def __init__(self, center: ty.Double[float]):
         self.center = center
 
-    def __call__(self, optics: CoaxialRayTracing, *args, **kwargs):
+    def __call__(self, optics: SequentialRayTracing, *args, **kwargs):
         center = optics.new_tensor(self.center)
         return center
 
@@ -85,7 +85,7 @@ class WaveDependentPsfCenter(PsfCenterDeterm, metaclass=abc.ABCMeta):
     @utils.with_external
     def __call__(
         self,
-        optics: CoaxialRayTracing,
+        optics: SequentialRayTracing,
         origins: ty.Ts,
         out_ray: BatchedRay,
         wl: ty.Ts,
@@ -96,7 +96,7 @@ class WaveDependentPsfCenter(PsfCenterDeterm, metaclass=abc.ABCMeta):
         return center
 
     @abc.abstractmethod
-    def center_mult_wl(self, optics: CoaxialRayTracing, origins: ty.Ts, out_ray: BatchedRay, wl: ty.Ts):
+    def center_mult_wl(self, optics: SequentialRayTracing, origins: ty.Ts, out_ray: BatchedRay, wl: ty.Ts):
         pass
 
     @staticmethod
@@ -120,9 +120,9 @@ class ChiefRayPsfCenter(WaveDependentPsfCenter):
     """
     type = 'chief'
 
-    def center_mult_wl(self, optics: CoaxialRayTracing, origins: ty.Ts, out_ray: BatchedRay, wl: ty.Ts):
+    def center_mult_wl(self, optics: SequentialRayTracing, origins: ty.Ts, out_ray: BatchedRay, wl: ty.Ts):
         chief = optics.chief_ray(origins, wl, 'obj')  # ... x N_wl
-        out_chief = optics.surfaces.trace_out(chief, aperture=False)
+        out_chief = optics.trace_out(chief, aperture=False)
         center = out_chief.o[..., None, :2]  # ... x N_wl x 1 x 2
         return center
 
@@ -134,7 +134,7 @@ class MeanPsfCenter(WaveDependentPsfCenter):
     """
     type = 'mean'
 
-    def center_mult_wl(self, optics: CoaxialRayTracing, origins: ty.Ts, out_ray: BatchedRay, wl: ty.Ts):
+    def center_mult_wl(self, optics: SequentialRayTracing, origins: ty.Ts, out_ray: BatchedRay, wl: ty.Ts):
         xy = out_ray.o[..., :2]  # ... x N_wl x N_spp x 2
         valid = out_ray.valid.unsqueeze(-1)  # ... x N_wl x N_spp x 1
         center = torch.where(valid, xy, 0).sum(-2, True) / valid.sum(-2, True)  # ... x N_wl x 1 x 2
@@ -153,7 +153,7 @@ class RobustMeanPsfCenter(MeanPsfCenter):
         super().__init__(wl_reduction)
         self.outlier_ratio = outlier_ratio
 
-    def center_mult_wl(self, optics: CoaxialRayTracing, origins: ty.Ts, out_ray: BatchedRay, wl: ty.Ts):
+    def center_mult_wl(self, optics: SequentialRayTracing, origins: ty.Ts, out_ray: BatchedRay, wl: ty.Ts):
         center = super().center_mult_wl(optics, origins, out_ray, wl)
         valid = out_ray.valid.unsqueeze(-1)  # ... x N_wl x N_spp x 1
         while True:
@@ -170,7 +170,7 @@ class RobustMeanPsfCenter(MeanPsfCenter):
         return center
 
 
-class CenterRequiredPsfModel(CrtPsfModel, metaclass=abc.ABCMeta):
+class CenterRequiredPsfModel(SrtPsfModel, metaclass=abc.ABCMeta):
     psf_center: utils.Exparam
 
     def __init__(self, psf_size: ty.Size2d = 64, psf_center: PsfCenter | PsfCenterDeterm = 'linear'):
@@ -181,11 +181,7 @@ class CenterRequiredPsfModel(CrtPsfModel, metaclass=abc.ABCMeta):
         self.psf_center = psf_center
 
     # normalizer of external parameters
-    @staticmethod
-    def _normalize_psf_center(value) -> PsfCenterDeterm:
-        if isinstance(value, PsfCenterDeterm):
-            return value
-        return PsfCenterDeterm.create(value)
+    _normalize_psf_center = staticmethod(utils.type_normalizer(PsfCenterDeterm))
 
 
 class IncoherentRectKernelPsf(CenterRequiredPsfModel, utils.VarHookMixIn):
@@ -194,7 +190,7 @@ class IncoherentRectKernelPsf(CenterRequiredPsfModel, utils.VarHookMixIn):
     @utils.with_external
     def psf(
         self,
-        optics: 'CoaxialRayTracing',
+        optics: SequentialRayTracing,
         origins: ty.Ts,
         wl: ty.Vector = None,
         psf_size: ty.Size2d = None,
@@ -205,6 +201,7 @@ class IncoherentRectKernelPsf(CenterRequiredPsfModel, utils.VarHookMixIn):
     ) -> ty.Ts:
         origins = optics.cam2lens(origins)
         out_ray = optics.trace_point(origins, wl, sampler)  # ... x N_wl x N_spp
+        out_ray = optics.proj_ray_image_plane(out_ray)
         n_spp = out_ray.shape[-1]
 
         xy_center = psf_center(optics, origins, out_ray, wl, **kwargs)
@@ -264,7 +261,7 @@ class IncoherentGaussianKernelPsf(CenterRequiredPsfModel):
     @utils.with_external
     def psf(
         self,
-        optics: 'CoaxialRayTracing',
+        optics: SequentialRayTracing,
         origins: ty.Ts,
         wl: ty.Ts,  # N_wl
         psf_size: ty.Size2d = None,
@@ -274,6 +271,7 @@ class IncoherentGaussianKernelPsf(CenterRequiredPsfModel):
     ) -> ty.Ts:
         origins = optics.cam2lens(origins)
         out_ray = optics.trace_point(origins, wl, sampler)  # ... x N_wl x N_spp
+        out_ray = optics.proj_ray_image_plane(out_ray)
 
         xy_center = psf_center(optics, optics.cam2lens(origins), out_ray, wl, **kwargs)
         xy = out_ray.o[..., :2] - xy_center  # ... x N_wl x N_spp x 2
@@ -303,7 +301,7 @@ class CoherentIntegralPsf(CenterRequiredPsfModel, metaclass=abc.ABCMeta):
     @utils.with_external
     def psf(
         self,
-        optics: 'CoaxialRayTracing',
+        optics: CoaxialRayTracing,
         origins: ty.Ts,
         wl: ty.Vector = None,
         psf_size: ty.Size2d = None,
@@ -367,12 +365,12 @@ class CoherentHuygensPsf(CoherentIntegralPsf):
         return _t.expi(phase)
 
 
-class CoherentFraunhoferPsf(CrtPsfModel):
+class CoherentFraunhoferPsf(SrtPsfModel):
     type = 'coh_fraunhofer'
 
     def psf(
         self,
-        optics: 'CoaxialRayTracing',
+        optics: CoaxialRayTracing,
         origins: ty.Ts,
         wl: ty.Vector = None,
         psf_size: ty.Size2d = None,
@@ -530,7 +528,7 @@ class CoherentPsf(CenterRequiredPsfModel):
     @utils.with_external
     def psf(
         self,
-        optics: 'CoaxialRayTracing',
+        optics: CoaxialRayTracing,
         origins: ty.Ts,
         wl: ty.Vector = None,
         psf_size: ty.Size2d = None,

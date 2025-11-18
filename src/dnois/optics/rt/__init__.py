@@ -5,6 +5,6 @@ for common optical systems.
 from .ray import *
 from .rto import *
 from .surf import *
-from .crt import *
+from .seq import *
 
-from . import ray, rto, surf, crt
+from . import ray, rto, surf, seq

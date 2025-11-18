@@ -21,8 +21,9 @@ __all__ = [
     'draw_surface_thin_lens',
     'draw_surf_common',
 
-    'CRTSpotDiagram',
+    'SRTSpotDiagram',
     'CRTVisConfig',
+    'SRTVisConfig',
 ]
 
 ty = base.typing
@@ -58,8 +59,15 @@ def _plot_rays_3d(ax, ray1: BatchedRay, ray2: BatchedRay, colors: list[str], lss
 
 
 @dataclass
-class CRTVisConfig:
-    """A data class describing visualization configuration for :class:`CoaxialRayTracing`."""
+class SRTVisConfig:
+    """A data class describing visualization configuration for :class:`RayTracingOptics`."""
+    v3d_surface_color: tuple = (0., 1., 1., 0.5)  #: Color of surfaces.
+    v3d_reflective_surface_color: tuple = ('silver', 0.5)  #: Color of reflective surfaces.
+
+
+@dataclass
+class CRTVisConfig(SRTVisConfig):
+    """A subclass of :class:`RTVisConfig` adapted for :class:`CoaxialRayTracing`."""
     color_fresnel: str = 'orange'  #: Color of latent profile of Fresnel surface.
     #: Line style to draw profiles of surfaces.
     linestyle_surface: dict = field(default_factory=lambda: {'color': 'black', 'linewidth': 1})
@@ -67,14 +75,9 @@ class CRTVisConfig:
     linestyle_terminal: dict = field(default_factory=lambda: {'color': 'black', 'linewidth': 2})
     surface_points: int = 100  #: Number of points to draw profiles of surfaces.
 
-    # region 3D drawing options
-    v3d_surface_color: tuple = (0., 1., 1., 0.5)  #: Color of surfaces.
-    v3d_reflective_surface_color: tuple = ('silver', 0.5)  #: Color of reflective surfaces.
-    # endregion
-
 
 @dataclass
-class CRTSpotDiagram:
+class SRTSpotDiagram:
     """A data class encapsulating the information about a spot diagram of :class:`CoaxialRayTracing`."""
     fig: 'Figure'
     rms: ty.Ts = None
@@ -212,13 +215,13 @@ def draw_surfaces(
 
 
 def draw_surfaces_3d(
-    ax: 'Axes3D', surfaces: surf.SurfaceSequence, config: CRTVisConfig
+    ax: 'Axes3D', surfaces: surf.SurfaceSequence, config: SRTVisConfig
 ):
     for sf in surfaces:
         draw_surface_3d(ax, sf, config)
 
 
-def draw_surface_3d(ax: 'Axes3D', sf: surf.Surface, config: CRTVisConfig):
+def draw_surface_3d(ax: 'Axes3D', sf: surf.Surface, config: SRTVisConfig):
     apt = sf.aperture
     if isinstance(apt, (surf.AnnularAperture, surf.CircularAperture)):
         x, y = apt.sample_unipolar(10, 10)

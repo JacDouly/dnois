@@ -120,13 +120,13 @@ class ThinLens(Plane):
         fl2: Scalar = None,
         reflective: bool = False,
         fl_equal: bool = True,
-        eps: float = 1e-3, *,
-        d: Scalar = None
+        eps: float = 1e-3,
+        **kwargs
     ):
         if fl2 is None:
             fl2 = fl1
 
-        super().__init__(material, aperture, reflective, d=d)
+        super().__init__(material, aperture, reflective, **kwargs)
         #: Object focal length.
         self.fl1: nn.Parameter = nn.Parameter(ty.scalar(fl1, dtype=torch.get_default_dtype()))
         if not fl_equal:
@@ -246,10 +246,9 @@ class _SphereBase(Surface, metaclass=abc.ABCMeta):  # docstring for Spherical
         aperture: Aperture | Scalar = float('inf'),
         reflective: bool = False,
         intersection_config: IntersectionConfig = IntersectionConfig.default,
-        *,
-        d: Scalar = None
+        **kwargs
     ):
-        super().__init__(material, aperture, reflective, intersection_config, d=d)
+        super().__init__(material, aperture, reflective, intersection_config, **kwargs)
         roc = ty.scalar(roc, dtype=torch.get_default_dtype())
         self.curvature: nn.Parameter = nn.Parameter(1 / roc)  #: Curvature. One of optimizable parameters.
 
@@ -371,10 +370,9 @@ class _ConicBase(_SphereBase, metaclass=abc.ABCMeta):  # docstring for Conic
         aperture: Aperture | Scalar = float('inf'),
         reflective: bool = False,
         intersection_config: IntersectionConfig = IntersectionConfig.default,
-        *,
-        d: Scalar = None
+        **kwargs
     ):
-        super().__init__(roc, material, aperture, reflective, intersection_config, d=d)
+        super().__init__(roc, material, aperture, reflective, intersection_config, **kwargs)
         k = ty.scalar(conic, dtype=torch.get_default_dtype())
         self.conic: nn.Parameter = nn.Parameter(k)  #: Conic coefficient. One of optimizable parameters.
 
@@ -462,10 +460,9 @@ class _EvenAsphereBase(_ConicBase, metaclass=abc.ABCMeta):
         aperture: Aperture | Scalar = float('inf'),
         reflective: bool = False,
         intersection_config: IntersectionConfig = IntersectionConfig.default,
-        *,
-        d: Scalar = None
+        **kwargs
     ):
-        super().__init__(roc, conic, material, aperture, reflective, intersection_config, d=d)
+        super().__init__(roc, conic, material, aperture, reflective, intersection_config, **kwargs)
         for i, a_item in enumerate(a):
             self.register_parameter(f'a{i + 1}', nn.Parameter(ty.scalar(a_item, dtype=torch.get_default_dtype())))
         self._n_a = len(a)
@@ -574,13 +571,12 @@ class Fresnel(EvenAsphere, utils.ExternalParamMixIn):
         virtual_wrapping: float = None,
         reflective: bool = False,
         intersection_config: IntersectionConfig = IntersectionConfig.default,
-        *,
-        d: Scalar = None,
+        **kwargs
     ):
         if virtual_wrapping is None:
             virtual_wrapping = wrapping
 
-        super().__init__(roc, conic, a, material, aperture, reflective, intersection_config, d=d)
+        super().__init__(roc, conic, a, material, aperture, reflective, intersection_config, **kwargs)
         self.wrapping = wrapping
         self.virtual_wrapping = virtual_wrapping
 
@@ -641,10 +637,9 @@ class Zernike(_EvenAsphereBase):
         aperture: Aperture | Scalar = float('inf'),
         reflective: bool = False,
         intersection_config: IntersectionConfig = IntersectionConfig.default,
-        *,
-        d: Scalar = None
+        **kwargs
     ):
-        super().__init__(roc, conic, a, material, aperture, reflective, intersection_config, d=d)
+        super().__init__(roc, conic, a, material, aperture, reflective, intersection_config, **kwargs)
 
         for i, z_item in enumerate(z):
             self.register_parameter(f'z{i + 1}', nn.Parameter(ty.scalar(z_item, dtype=torch.get_default_dtype())))
@@ -884,12 +879,11 @@ class PolynomialPhase(PlanarPhase):
         aperture: Aperture | Scalar = None,
         norm_radius: float = None,
         reflective: bool = False,
-        *,
-        d: Scalar = None
+        **kwargs
     ):
         if norm_radius is None:
             raise NotImplementedError()
-        super().__init__(material, aperture, reflective, d=d)
+        super().__init__(material, aperture, reflective, **kwargs)
 
         for i, _a in enumerate(a):
             self.register_parameter(f'a{i + 1}', nn.Parameter(ty.scalar(_a, dtype=torch.get_default_dtype())))
@@ -958,6 +952,7 @@ class PolynomialPhase(PlanarPhase):
 
 
 class AsphereRadialPhase(EvenAsphere):
+    # noinspection PyShadowingNames
     def __init__(
         self, roc: Scalar = float('inf'),
         conic: Scalar = 0,
@@ -968,10 +963,9 @@ class AsphereRadialPhase(EvenAsphere):
         aperture: Aperture | Scalar = float('inf'),
         reflective: bool = False,
         intersection_config: IntersectionConfig = IntersectionConfig.default,
-        *,
-        d: Scalar = None
+        **kwargs
     ):
-        super().__init__(roc, conic, a, material, aperture, reflective, intersection_config, d=d)
+        super().__init__(roc, conic, a, material, aperture, reflective, intersection_config, **kwargs)
         for i, b in enumerate(phase_coef):
             self.register_parameter(f'b{i + 1}', nn.Parameter(ty.scalar(b, dtype=torch.get_default_dtype())))
         self._phase_n = len(phase_coef)
@@ -1128,8 +1122,7 @@ class Grating(Plane):
         transmittance: ty.Vector = None,
         reflectance: ty.Vector = None,
         expand_dim: int = -1,
-        *,
-        d: Scalar = None
+        **kwargs
     ):
         if period is None:
             period = base.Length.as_default(1e-5, 'm')
@@ -1146,7 +1139,7 @@ class Grating(Plane):
         transmittance = _check_coefficients(transmittance, 'Transmittance', orders[1] - orders[0] + 1)
         reflectance = _check_coefficients(reflectance, 'Reflectance', orders[1] - orders[0] + 1)
 
-        super().__init__(material, aperture, False, d=d)
+        super().__init__(material, aperture, False, **kwargs)
         self.register_parameter('period', nn.Parameter(period, False))
         self.register_buffer('T', transmittance)
         self.register_buffer('R', reflectance)
