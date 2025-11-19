@@ -13,6 +13,16 @@ from numbers import *
 import typing
 from typing import *
 
+# Support for Self type (Python 3.11+)
+try:
+    from typing import Self
+except ImportError:
+    try:
+        from typing_extensions import Self
+    except ImportError:
+        # Fallback for Python < 3.11
+        Self = typing.TypeVar('Self', bound='object')
+
 import torch
 from torch import is_tensor, Tensor
 
@@ -34,6 +44,7 @@ __all__ = [
     'NumInv',
     'Pair',
     'Scalar',
+    'Self',
     'Size2d',
     'Sizend',
     'Spacing',

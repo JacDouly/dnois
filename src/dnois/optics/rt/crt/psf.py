@@ -425,9 +425,10 @@ class CoherentFraunhoferPsf(CrtPsfModel):
         _c_vec = torch.stack([right_c - new_c, new_c - left_c], -1).unsqueeze(-1)  # ... x N_wl x MH x MW x 2 x 1
         pre_idx = [torch.arange(dim_size, device=optics.device) for dim_size in phase.shape[:-2]]
         pre_idx = [_t.as1d(idx, len(pre_idx) + 2, i) for i, idx in enumerate(pre_idx)]
+        pre_idx_tuple = tuple(pre_idx)
         _mat = torch.stack([
-            torch.stack([phase[*pre_idx, valid_r1, valid_c1], phase[*pre_idx, valid_r1, valid_c2]], -1),
-            torch.stack([phase[*pre_idx, valid_r2, valid_c1], phase[*pre_idx, valid_r2, valid_c2]], -1),
+            torch.stack([phase[pre_idx_tuple + (valid_r1, valid_c1)], phase[pre_idx_tuple + (valid_r1, valid_c2)]], -1),
+            torch.stack([phase[pre_idx_tuple + (valid_r2, valid_c1)], phase[pre_idx_tuple + (valid_r2, valid_c2)]], -1),
         ], -2)  # ... x N_wl x MH x MW x 2 x 2
         interp_phase = _r_vec @ _mat @ _c_vec
         interp_phase = interp_phase.squeeze(-1).squeeze(-1)  # ... x N_wl x MH x MW

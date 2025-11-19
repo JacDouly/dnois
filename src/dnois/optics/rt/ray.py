@@ -240,17 +240,17 @@ class BatchedRay(_t.TensorContainerMixIn):
 
         v = v.broadcast_to(self.shape)
         idx = v.nonzero(as_tuple=False)[0]  # The indices of the first valid element
-        idx = idx.tolist()
+        idx_tuple = tuple(idx.tolist())
 
         def _copy(k: str, ts: Ts) -> Ts | None:
             if k == 'v':  # do not copy validity
                 return None
             elif k in self._3d:
                 ts = ts.broadcast_to(v.shape + (3,))
-                return torch.where(v.unsqueeze(-1), ts, ts[*idx].clone())
+                return torch.where(v.unsqueeze(-1), ts, ts[idx_tuple].clone())
             else:
                 ts = ts.broadcast_to(v.shape)
-                return torch.where(v, ts, ts[*idx].clone())
+                return torch.where(v, ts, ts[idx_tuple].clone())
 
         self.apply_(_copy)
         return self
