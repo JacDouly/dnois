@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dnois"
-version = "0.1.1-dev.20251114"
+version = "0.1.1-dev.20251118"
 dependencies = [
     "matplotlib>=3.9.2",
     "numpy>=2.1.3",

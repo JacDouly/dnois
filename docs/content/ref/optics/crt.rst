@@ -1,5 +1,5 @@
 #########################################
-Sequential Coaxial System
+Sequential Ray Tracing
 #########################################
 
 .. currentmodule:: dnois.optics.rt
@@ -11,6 +11,8 @@ Optical system model
     :toctree: ../../generated/optics/rt/crt
 
     CoaxialRayTracing
+    OffAxisRayTracing
+    SequentialRayTracing
 
 *******************************************
 Point spread function models
@@ -22,7 +24,7 @@ They implements the :meth:`CrtPsfModel.psf` method to compute PSF of a given poi
 .. autosummary::
     :toctree: ../../generated/optics/rt/crt
 
-    CrtPsfModel
+    SrtPsfModel
     CoherentKirchoffPsf
     CoherentHuygensPsf
     CoherentFraunhoferPsf
@@ -48,4 +50,5 @@ Visualization
     :toctree: ../../generated/optics/rt/crt
 
     CRTVisConfig
-    CRTSpotDiagram
+    SRTSpotDiagram
+    SRTVisConfig

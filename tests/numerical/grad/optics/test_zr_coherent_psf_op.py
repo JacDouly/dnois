@@ -3,9 +3,9 @@ import unittest
 import torch
 from torch.autograd import gradcheck
 
-import dnois.optics.rt.crt.psf
+import dnois.optics.rt.seq.psf
 
-func = dnois.optics.rt.crt.psf._CoherentPsfOp.apply  # noqa
+func = dnois.optics.rt.seq.psf._CoherentPsfOp.apply  # noqa
 
 
 @unittest.skip('This PSF model is not needed')
